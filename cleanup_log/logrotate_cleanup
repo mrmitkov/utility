@@ -1,0 +1,8 @@
+/var/log/cleanup.log {
+    size 100M
+    rotate 5
+    compress
+    delaycompress
+    missingok
+    notifempty
+}
