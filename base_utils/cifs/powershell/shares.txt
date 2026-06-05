@@ -1,0 +1,4 @@
+# formato: \\host\share
+\\server1\share1
+\\server2\share2
+\\192.168.1.10\dati
