@@ -27,6 +27,7 @@ while getopts "s:d:hHfa" opt; do
         *) show_help ;;
     esac
 done
+
 # Controllo che i file siano stati specificati
 if [[ -z "$SOURCE_FILE" || -z "$DEST_FILE" ]]; then
     echo "Errore: file sorgente o destinazione non specificati."

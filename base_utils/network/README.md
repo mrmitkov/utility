@@ -1,35 +1,30 @@
 # Network Utilities
 
-Questa cartella contiene script per test di rete, ping e verifiche DNS.
+Questa cartella raccoglie gli script di rete divisi per shell.
 
-## Script disponibili
+## Struttura
 
-- `ping_list.sh` - esegue un ping su una lista di host/indirizzi IP fornita come argomento.
-- `DNS_check.sh` - verifica la raggiungibilità di indirizzi IP specificati.
-- `list_fqdn.sh` - risolve un file di input usando `nslookup` e scrive i FQDN in un file di destinazione.
+- `bash/` - script Bash per ping e controlli DNS.
+- `powershell/` - script PowerShell per verifiche WinRM e connettività remota.
 
 ## Uso
 
-### Ping su lista
+Gli script Bash si trovano in `bash/` e si eseguono da lì.
 
 ```bash
-cd base_utils/network
+cd base_utils/network/bash
 bash ping_list.sh hosts.txt
 ```
 
-### Controllo DNS
+Per lo script PowerShell:
 
-```bash
-bash DNS_check.sh
-```
-
-### Risoluzione FQDN
-
-```bash
-bash list_fqdn.sh -s input.txt -d output.txt
+```powershell
+cd base_utils/network/powershell
+.\remote_tnc.ps1
 ```
 
 ## Note
 
 - `ping_list.sh` richiede un file di testo con un host o IP per riga.
 - `list_fqdn.sh` richiede che il file sorgente esista e che il sistema possa effettuare la risoluzione DNS.
+- `remote_tnc.ps1` usa un file `hosts.ini` nella stessa cartella dello script.

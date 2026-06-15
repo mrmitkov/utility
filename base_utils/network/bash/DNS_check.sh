@@ -1,11 +1,11 @@
 #!/bin/bash
 
-ip_addresses=("0.0.0.0" "1.1.1.1")
-
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[1;34m'
 NC='\033[0m' # No Color
+
+ip_addresses=("0.0.0.0" "1.1.1.1")
 
 while true; do
     all_up=true
