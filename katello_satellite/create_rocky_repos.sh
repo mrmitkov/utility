@@ -28,16 +28,16 @@ create_repo() {
 }
 
 # Rocky Linux 8.10
-create_repo "rocky-8.10-baseos" "8.10" "BaseOS/${ARCH}/os"
-create_repo "rocky-8.10-appstream" "8.10" "AppStream/${ARCH}/os"
-create_repo "rocky-8.10-powertools" "8.10" "PowerTools/${ARCH}/os"
-create_repo "rocky-8.10-extras" "8.10" "extras/${ARCH}/os"
+create_repo "8.10-baseos" "8.10" "BaseOS/${ARCH}/os"
+create_repo "8.10-appstream" "8.10" "AppStream/${ARCH}/os"
+create_repo "8.10-powertools" "8.10" "PowerTools/${ARCH}/os"
+create_repo "8.10-extras" "8.10" "extras/${ARCH}/os"
 
 # Rocky Linux 9.8
-create_repo "rocky-9.8-baseos" "9.8" "BaseOS/${ARCH}/os"
-create_repo "rocky-9.8-appstream" "9.8" "AppStream/${ARCH}/os"
-create_repo "rocky-9.8-crb" "9.8" "CRB/${ARCH}/os"
-create_repo "rocky-9.8-extras" "9.8" "extras/${ARCH}/os"
+create_repo "9.8-baseos" "9.8" "BaseOS/${ARCH}/os"
+create_repo "9.8-appstream" "9.8" "AppStream/${ARCH}/os"
+create_repo "9.8-crb" "9.8" "CRB/${ARCH}/os"
+create_repo "9.8-extras" "9.8" "extras/${ARCH}/os"
 
 hammer repository synchronize \
   --product "$PRODUCT" \
