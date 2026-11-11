@@ -545,59 +545,125 @@ RESULTS_DIR=$(mktemp -d) || {
 }
 trap 'rm -rf -- "$RESULTS_DIR"' EXIT
 
-declare -a BATCH_PIDS=()
-declare -a BATCH_INDICES=()
+declare -a ACTIVE_INDICES=()
+declare -a ACTIVE_PIDS=()
+declare -a REMAINING_INDICES=()
+SPINNER_CHARS=('|' '/' '-' '\')
+SPINNER_INDEX=0
+NEXT_HOST=0
+COMPLETED_HOSTS=0
+TOTAL_HOSTS=${#HOSTS[@]}
+ANALYSIS_FAILED=0
 
-collect_batch() {
+render_progress() {
 
-    local i pid index failed=0
-    local host ip icmp ssh rdp ad dn
+    local index progress_bar="" percent=0
+    local bar_width=30 filled=0
 
-    for i in "${!BATCH_PIDS[@]}"; do
-        pid="${BATCH_PIDS[$i]}"
-        index="${BATCH_INDICES[$i]}"
-        if ! wait "$pid"; then
-            echo "Errore durante l'analisi di ${HOSTS[$index]}." >&2
-            failed=1
+    [ -t 1 ] || return 0
+
+    if (( TOTAL_HOSTS > 0 )); then
+        percent=$(( COMPLETED_HOSTS * 100 / TOTAL_HOSTS ))
+        filled=$(( COMPLETED_HOSTS * bar_width / TOTAL_HOSTS ))
+    fi
+
+    for ((index = 0; index < bar_width; index++)); do
+        if (( index < filled )); then
+            progress_bar+="#"
+        elif (( index == filled && COMPLETED_HOSTS < TOTAL_HOSTS )); then
+            progress_bar+=">"
+        else
+            progress_bar+="-"
         fi
     done
 
-    for index in "${BATCH_INDICES[@]}"; do
-        if [ -s "$RESULTS_DIR/$index.row" ]; then
-            IFS='|' read -r host ip icmp ssh rdp ad dn < "$RESULTS_DIR/$index.row"
-            add_row "$host" "$ip" "$icmp" "$ssh" "$rdp" "$ad" "$dn"
-        else
-            echo "Nessun risultato ricevuto per ${HOSTS[$index]}." >&2
-            failed=1
+    printf '\r\033[K[%s] %3d%% (%d/%d) %s' \
+        "$progress_bar" "$percent" "$COMPLETED_HOSTS" "$TOTAL_HOSTS" \
+        "${SPINNER_CHARS[$SPINNER_INDEX]}"
+}
+
+print_host_status() {
+
+    local message="$1"
+
+    if [ -t 1 ]; then
+        printf '\r\033[K%s\n' "$message"
+        render_progress
+    else
+        printf '%s\n' "$message"
+    fi
+}
+
+while (( NEXT_HOST < ${#HOSTS[@]} || ${#ACTIVE_INDICES[@]} > 0 )); do
+    while (( NEXT_HOST < ${#HOSTS[@]} && ${#ACTIVE_INDICES[@]} < MAX_PARALLEL )); do
+        HOST="${HOSTS[$NEXT_HOST]}"
+
+        print_host_status "Analisi $HOST - in corso"
+
+        ( analyze_host "$HOST" ) \
+            > "$RESULTS_DIR/$NEXT_HOST.row" \
+            2> "$RESULTS_DIR/$NEXT_HOST.err" &
+        ACTIVE_PIDS[$NEXT_HOST]=$!
+        ACTIVE_INDICES+=("$NEXT_HOST")
+        ((NEXT_HOST += 1))
+        render_progress
+    done
+
+    REMAINING_INDICES=()
+    for index in "${ACTIVE_INDICES[@]}"; do
+        pid="${ACTIVE_PIDS[$index]}"
+
+        if kill -0 "$pid" 2>/dev/null; then
+            REMAINING_INDICES+=("$index")
+            continue
         fi
 
+        if ! wait "$pid"; then
+            if [ -t 1 ]; then
+                printf '\r\033[K'
+            fi
+            echo "Errore durante l'analisi di ${HOSTS[$index]}." >&2
+            ANALYSIS_FAILED=1
+        fi
+        ((COMPLETED_HOSTS += 1))
+
+        if [ -s "$RESULTS_DIR/$index.row" ]; then
+            :
+        else
+            echo "Nessun risultato ricevuto per ${HOSTS[$index]}." >&2
+            ANALYSIS_FAILED=1
+        fi
+
+        if [ -t 1 ]; then
+            printf '\r\033[K'
+        fi
         if [ -s "$RESULTS_DIR/$index.err" ]; then
             cat "$RESULTS_DIR/$index.err" >&2
         fi
+        print_host_status "Analyzed ${HOSTS[$index]} done"
     done
+    ACTIVE_INDICES=("${REMAINING_INDICES[@]}")
+    render_progress
 
-    BATCH_PIDS=()
-    BATCH_INDICES=()
-    return "$failed"
-}
-
-for i in "${!HOSTS[@]}"; do
-    HOST="${HOSTS[$i]}"
-    echo "Analisi $HOST ..."
-
-    ( analyze_host "$HOST" ) \
-        > "$RESULTS_DIR/$i.row" \
-        2> "$RESULTS_DIR/$i.err" &
-    BATCH_PIDS+=("$!")
-    BATCH_INDICES+=("$i")
-
-    if (( ${#BATCH_PIDS[@]} >= MAX_PARALLEL )); then
-        collect_batch || exit 1
+    if (( ${#ACTIVE_INDICES[@]} > 0 )); then
+        SPINNER_INDEX=$(( (SPINNER_INDEX + 1) % ${#SPINNER_CHARS[@]} ))
+        sleep 0.2
     fi
 done
 
-if [ ${#BATCH_PIDS[@]} -gt 0 ]; then
-    collect_batch || exit 1
+if [ -t 1 ] && (( TOTAL_HOSTS > 0 )); then
+    printf '\r\033[K\n'
+fi
+
+for i in "${!HOSTS[@]}"; do
+    if [ -s "$RESULTS_DIR/$i.row" ]; then
+        IFS='|' read -r host ip icmp ssh rdp ad dn < "$RESULTS_DIR/$i.row"
+        add_row "$host" "$ip" "$icmp" "$ssh" "$rdp" "$ad" "$dn"
+    fi
+done
+
+if (( ANALYSIS_FAILED )); then
+    exit 1
 fi
 
 show_table
