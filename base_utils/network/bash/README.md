@@ -22,5 +22,5 @@ bash list_fqdn.sh -s input.txt -d output.txt
 - `ping_list.sh` richiede un file di testo con un host o IP per riga.
 - `list_fqdn.sh` richiede che il file sorgente esista e che il sistema possa effettuare la risoluzione DNS.
 - `ad_inventory_check.sh` richiede un ticket Kerberos valido e consente di selezionare un Domain Controller tra quelli pubblicati nei record SRV LDAP; il Base DN viene letto direttamente dal controller selezionato.
-- `ad_inventory_check.sh` analizza fino a 10 host in parallelo per impostazione predefinita. Il limite si può cambiare, ad esempio: `MAX_PARALLEL=5 bash ad_inventory_check.sh inventory.ini`.
+- `ad_inventory_check.sh` analizza fino a 10 host in parallelo per impostazione predefinita, mostra una riga per host avviato/completato e una barra di avanzamento effimera in fondo al terminale. Il limite si può cambiare, ad esempio: `MAX_PARALLEL=5 bash ad_inventory_check.sh inventory.ini`.
 - `ad_inventory_check.sh` verifica RDP controllando la raggiungibilità TCP della porta 3389.
