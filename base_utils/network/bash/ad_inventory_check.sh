@@ -554,51 +554,115 @@ NEXT_HOST=0
 COMPLETED_HOSTS=0
 TOTAL_HOSTS=${#HOSTS[@]}
 ANALYSIS_FAILED=0
+PROGRESS_UI=0
+TERMINAL_ROWS=0
+TERMINAL_COLS=0
+SCROLL_END=0
+UI_HOST_ROWS=0
+
+clear_progress_ui() {
+
+    local row
+
+    (( PROGRESS_UI )) || return 0
+
+    printf '\033[r'
+    for ((row = SCROLL_END + 1; row <= TERMINAL_ROWS; row++)); do
+        printf '\033[%d;1H\033[2K' "$row"
+    done
+    printf '\033[%d;1H' "$((SCROLL_END + 1))"
+    PROGRESS_UI=0
+}
+
+configure_progress_ui() {
+
+    local dimensions rows columns
+
+    [ -t 1 ] || return 1
+    dimensions=$(stty size < /dev/tty 2>/dev/null) || return 1
+    read -r rows columns <<< "$dimensions"
+    if [[ ! "$rows" =~ ^[0-9]+$ || ! "$columns" =~ ^[0-9]+$ ]] ||
+        (( rows < 4 || columns < 10 )); then
+        clear_progress_ui
+        return 1
+    fi
+
+    if (( PROGRESS_UI )) &&
+        (( rows == TERMINAL_ROWS && columns == TERMINAL_COLS )); then
+        return 0
+    fi
+
+    clear_progress_ui
+    TERMINAL_ROWS="$rows"
+    TERMINAL_COLS="$columns"
+    UI_HOST_ROWS=$(( rows - 3 ))
+    if (( UI_HOST_ROWS > MAX_PARALLEL )); then
+        UI_HOST_ROWS="$MAX_PARALLEL"
+    fi
+    SCROLL_END=$(( rows - UI_HOST_ROWS - 1 ))
+
+    printf '\033[1;%dr\033[%d;1H' "$SCROLL_END" "$SCROLL_END"
+    PROGRESS_UI=1
+}
 
 render_progress() {
 
-    local index progress_bar="" percent=0
-    local bar_width=30 filled=0
+    local index slot row status progress_bar="" percent=0
+    local bar_width filled suffix remaining
 
-    [ -t 1 ] || return 0
+    configure_progress_ui || return 0
+
+    for ((slot = 0; slot < UI_HOST_ROWS; slot++)); do
+        row=$(( SCROLL_END + 1 + slot ))
+        status=""
+        if (( ${#ACTIVE_INDICES[@]} > UI_HOST_ROWS && slot == UI_HOST_ROWS - 1 )); then
+            remaining=$(( ${#ACTIVE_INDICES[@]} - UI_HOST_ROWS + 1 ))
+            status="+$remaining altri host in analisi"
+        elif (( slot < ${#ACTIVE_INDICES[@]} )); then
+            index="${ACTIVE_INDICES[$slot]}"
+            status="In Analysis ${HOSTS[$index]} - [${SPINNER_CHARS[$SPINNER_INDEX]}]"
+        fi
+        printf '\033[%d;1H\033[2K%.*s' "$row" "$TERMINAL_COLS" "$status"
+    done
 
     if (( TOTAL_HOSTS > 0 )); then
         percent=$(( COMPLETED_HOSTS * 100 / TOTAL_HOSTS ))
-        filled=$(( COMPLETED_HOSTS * bar_width / TOTAL_HOSTS ))
     fi
+    suffix=" $COMPLETED_HOSTS/$TOTAL_HOSTS ($percent%)"
+    bar_width=$(( TERMINAL_COLS - ${#suffix} - 2 ))
+    (( bar_width < 0 )) && bar_width=0
+    filled=$(( COMPLETED_HOSTS * bar_width / (TOTAL_HOSTS > 0 ? TOTAL_HOSTS : 1) ))
 
     for ((index = 0; index < bar_width; index++)); do
         if (( index < filled )); then
-            progress_bar+="#"
-        elif (( index == filled && COMPLETED_HOSTS < TOTAL_HOSTS )); then
-            progress_bar+=">"
+            progress_bar+="|"
         else
-            progress_bar+="-"
+            progress_bar+=" "
         fi
     done
 
-    printf '\r\033[K[%s] %3d%% (%d/%d) %s' \
-        "$progress_bar" "$percent" "$COMPLETED_HOSTS" "$TOTAL_HOSTS" \
-        "${SPINNER_CHARS[$SPINNER_INDEX]}"
+    row="$TERMINAL_ROWS"
+    printf '\033[%d;1H\033[2K%.*s' "$row" "$TERMINAL_COLS" "[$progress_bar]$suffix"
+    printf '\033[%d;1H' "$SCROLL_END"
 }
 
 print_host_status() {
 
-    local message="$1"
-
-    if [ -t 1 ]; then
-        printf '\r\033[K%s\n' "$message"
-        render_progress
+    if (( PROGRESS_UI )); then
+        printf '\033[%d;1H\033[2K%s\n' "$SCROLL_END" "$1"
     else
-        printf '%s\n' "$message"
+        printf '%s\n' "$1"
     fi
 }
+
+trap 'clear_progress_ui; rm -rf -- "$RESULTS_DIR"' EXIT
+trap 'render_progress' WINCH
 
 while (( NEXT_HOST < ${#HOSTS[@]} || ${#ACTIVE_INDICES[@]} > 0 )); do
     while (( NEXT_HOST < ${#HOSTS[@]} && ${#ACTIVE_INDICES[@]} < MAX_PARALLEL )); do
         HOST="${HOSTS[$NEXT_HOST]}"
 
-        print_host_status "Analisi $HOST - in corso"
+        #print_host_status "Analisi $HOST - in corso"
 
         ( analyze_host "$HOST" ) \
             > "$RESULTS_DIR/$NEXT_HOST.row" \
@@ -619,8 +683,8 @@ while (( NEXT_HOST < ${#HOSTS[@]} || ${#ACTIVE_INDICES[@]} > 0 )); do
         fi
 
         if ! wait "$pid"; then
-            if [ -t 1 ]; then
-                printf '\r\033[K'
+            if (( PROGRESS_UI )); then
+                printf '\033[%d;1H\033[2K' "$SCROLL_END"
             fi
             echo "Errore durante l'analisi di ${HOSTS[$index]}." >&2
             ANALYSIS_FAILED=1
@@ -634,13 +698,14 @@ while (( NEXT_HOST < ${#HOSTS[@]} || ${#ACTIVE_INDICES[@]} > 0 )); do
             ANALYSIS_FAILED=1
         fi
 
-        if [ -t 1 ]; then
-            printf '\r\033[K'
-        fi
         if [ -s "$RESULTS_DIR/$index.err" ]; then
-            cat "$RESULTS_DIR/$index.err" >&2
+            if [ -t 1 ]; then
+                cat "$RESULTS_DIR/$index.err"
+            else
+                cat "$RESULTS_DIR/$index.err" >&2
+            fi
         fi
-        print_host_status "Analyzed ${HOSTS[$index]} done"
+        print_host_status "Analyzed ${HOSTS[$index]} - DONE"
     done
     ACTIVE_INDICES=("${REMAINING_INDICES[@]}")
     render_progress
@@ -651,9 +716,7 @@ while (( NEXT_HOST < ${#HOSTS[@]} || ${#ACTIVE_INDICES[@]} > 0 )); do
     fi
 done
 
-if [ -t 1 ] && (( TOTAL_HOSTS > 0 )); then
-    printf '\r\033[K\n'
-fi
+clear_progress_ui
 
 for i in "${!HOSTS[@]}"; do
     if [ -s "$RESULTS_DIR/$i.row" ]; then
