@@ -5,7 +5,7 @@ Questa cartella contiene script utili per creare e sincronizzare repository di d
 ## Contenuto
 
 - `create_ubuntu_repos.sh`  Script per creare i repository di Ubuntu per le release supportate, con la struttura dei repo Debian/Ubuntu.
-- `create_rocky_repos.sh`  Script per creare i repository di Rocky Linux 8.10 e 9.8, basati su `https://download.rockylinux.org/pub/rocky`.
+- `create_rocky_repos.sh`  Script per creare repository Rocky Linux 8.x e 9.x, con selezione automatica tra repository correnti e vault.
 - `crea_sm_repos.sh`  Crea il Product `ATIX Subscription Manager` con repository Debian, Ubuntu e SLES ospitati su `https://oss.atix.de`.
 
 ## Requisiti
@@ -21,6 +21,14 @@ Questa cartella contiene script utili per creare e sincronizzare repository di d
 chmod +x create_rocky_repos.sh
 ./create_rocky_repos.sh
 ```
+
+È possibile indicare una o più versioni come argomenti, ad esempio:
+
+```bash
+./create_rocky_repos.sh 8.9 8.10 9.8 9.9
+```
+
+Senza argomenti vengono usate le versioni `8.10` e `9.8`. Le versioni precedenti a `8.10` (Rocky 8) o `9.9` (Rocky 9) usano `https://dl.rockylinux.org/vault/rocky`; le altre usano `https://download.rockylinux.org/pub/rocky`.
 
 Per Ubuntu:
 
@@ -60,5 +68,5 @@ Il Product Subscription Manager comprende Debian 11/12/13, Ubuntu 20.04/22.04/24
 ## URL di base usati
 
 - Ubuntu: `http://archive.ubuntu.com/ubuntu`
-- Rocky: `https://download.rockylinux.org/pub/rocky`
+- Rocky: `https://download.rockylinux.org/pub/rocky` (release correnti) e `https://dl.rockylinux.org/vault/rocky` (release precedenti a 8.10/9.9)
 - Subscription Manager: `https://oss.atix.de`
