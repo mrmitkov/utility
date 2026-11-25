@@ -67,7 +67,7 @@ create_repo() {
     --product "$PRODUCT" \
     --content-type "yum" \
     --download-policy "on_demand" \
-    --mirror-on-sync true \
+    --mirroring-policy 'mirror_content_only' \
     --url "$repo_url"
   CREATED_REPOSITORIES+=("$name")
 }
